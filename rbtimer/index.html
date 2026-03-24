@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rainbow Arc Timer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Outfit:wght@200;300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+  :root {
+    --bg: #0c0a14;
+    --surface: #16132a;
+    --text: #e8e4f0;
+    --text-dim: #7a7490;
+    --accent: #c084fc;
+  }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 50%; left: 50%;
+    width: 800px; height: 800px;
+    transform: translate(-50%, -55%);
+    background: radial-gradient(circle, rgba(168,85,247,.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+  }
+
+  h1 {
+    font-weight: 200;
+    font-size: 1rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .arc-container {
+    position: relative;
+    width: 420px;
+    height: 250px;
+  }
+
+  .arc-svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .band-track {
+    fill: none;
+    stroke: #1a1630;
+    stroke-linecap: round;
+  }
+
+  .band-fill {
+    fill: none;
+    stroke-linecap: round;
+    /* animated via requestAnimationFrame */
+  }
+
+  .time-display {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+
+  .time-display .digits {
+    font-family: 'DM Mono', monospace;
+    font-size: 3.3rem;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .time-display .label {
+    font-size: 0.72rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+
+  .input-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .time-inputs {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .field label {
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .field input {
+    width: 80px;
+    text-align: center;
+    background: var(--surface);
+    border: 1px solid #2a2545;
+    border-radius: 12px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 1.6rem;
+    padding: 10px 8px;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+    -moz-appearance: textfield;
+  }
+
+  .field input::-webkit-inner-spin-button,
+  .field input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+  }
+
+  .field input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(192,132,252,.12);
+  }
+
+  .separator {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.6rem;
+    color: var(--text-dim);
+    padding-top: 18px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+  }
+
+  button {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 0.82rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    padding: 12px 36px;
+    transition: all .2s;
+  }
+
+  .btn-start {
+    background: linear-gradient(135deg, #a855f7, #ec4899, #f97316);
+    color: #fff;
+    box-shadow: 0 4px 24px rgba(168,85,247,.25);
+  }
+  .btn-start:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 32px rgba(168,85,247,.35);
+  }
+  .btn-start:active { transform: translateY(0); }
+
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text-dim);
+    border: 1px solid #2a2545;
+  }
+  .btn-secondary:hover {
+    border-color: #3d3660;
+    color: var(--text);
+  }
+
+  .btn-start:disabled {
+    opacity: .4;
+    cursor: default;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .input-panel.hidden { display: none; }
+  .controls.hidden { display: none; }
+
+  .done-flash {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(168,85,247,.14) 0%, transparent 70%);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 10;
+    transition: opacity .4s;
+  }
+  .done-flash.active { opacity: 1; }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .done-msg {
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity .4s;
+    margin-top: -8px;
+  }
+  .done-msg.visible { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="done-flash" id="flash"></div>
+
+<div class="container">
+  <h1>Rainbow Timer</h1>
+
+  <div class="arc-container">
+    <svg class="arc-svg" viewBox="0 0 420 250" id="arcSvg">
+      <defs></defs>
+    </svg>
+    <div class="time-display">
+      <div class="digits" id="digits">00:00</div>
+      <div class="label" id="timeLabel">set your time</div>
+    </div>
+  </div>
+
+  <div class="done-msg" id="doneMsg">Time's up!</div>
+
+  <div class="input-panel" id="inputPanel">
+    <div class="time-inputs">
+      <div class="field">
+        <label>Min</label>
+        <input type="number" id="minInput" min="0" max="999" value="5" placeholder="0">
+      </div>
+      <span class="separator">:</span>
+      <div class="field">
+        <label>Sec</label>
+        <input type="number" id="secInput" min="0" max="59" value="0" placeholder="0">
+      </div>
+    </div>
+    <button class="btn-start" id="startBtn">Start</button>
+  </div>
+
+  <div class="controls hidden" id="runControls">
+    <button class="btn-secondary" id="cancelBtn">Cancel</button>
+    <button class="btn-start" id="pauseBtn">Pause</button>
+  </div>
+</div>
+
+<script>
+  // ── Rainbow bands: outer (red) → inner (violet), like a real rainbow
+  const bands = [
+    { dark: '#7f1d1d', mid: '#ef4444', light: '#fca5a5' },   // red
+    { dark: '#7c2d12', mid: '#f97316', light: '#fdba74' },   // orange
+    { dark: '#713f12', mid: '#eab308', light: '#fde047' },   // yellow
+    { dark: '#14532d', mid: '#22c55e', light: '#86efac' },   // green
+    { dark: '#1e3a8a', mid: '#3b82f6', light: '#93c5fd' },   // blue
+    { dark: '#312e81', mid: '#6366f1', light: '#a5b4fc' },   // indigo
+    { dark: '#4c1d95', mid: '#a855f7', light: '#d8b4fe' },   // violet
+  ];
+
+  const BAND_W  = 11;
+  const GAP     = 3.5;
+  const CX      = 210;
+  const CY      = 225;
+  const R_OUTER = 195;
+
+  const svg  = document.getElementById('arcSvg');
+  const defs = svg.querySelector('defs');
+  const ns   = 'http://www.w3.org/2000/svg';
+
+  const fillEls = [];
+
+  bands.forEach((b, i) => {
+    const r = R_OUTER - i * (BAND_W + GAP);
+    const arcLen = Math.PI * r;
+
+    // Gradient along the arc: dark → mid → light (left to right)
+    const grad = document.createElementNS(ns, 'linearGradient');
+    grad.id = `bg${i}`;
+    grad.setAttribute('gradientUnits', 'userSpaceOnUse');
+    grad.setAttribute('x1', CX - r);
+    grad.setAttribute('y1', CY);
+    grad.setAttribute('x2', CX + r);
+    grad.setAttribute('y2', CY);
+
+    const stops = [
+      { off: '0%',   col: b.dark },
+      { off: '35%',  col: b.mid  },
+      { off: '100%', col: b.light },
+    ];
+    stops.forEach(s => {
+      const el = document.createElementNS(ns, 'stop');
+      el.setAttribute('offset', s.off);
+      el.setAttribute('stop-color', s.col);
+      grad.appendChild(el);
+    });
+    defs.appendChild(grad);
+
+    const d = `M ${CX - r} ${CY} A ${r} ${r} 0 0 1 ${CX + r} ${CY}`;
+
+    // Track
+    const track = document.createElementNS(ns, 'path');
+    track.setAttribute('d', d);
+    track.setAttribute('class', 'band-track');
+    track.setAttribute('stroke-width', BAND_W);
+    svg.appendChild(track);
+
+    // Colored fill
+    const fill = document.createElementNS(ns, 'path');
+    fill.setAttribute('d', d);
+    fill.setAttribute('class', 'band-fill');
+    fill.setAttribute('stroke-width', BAND_W);
+    fill.setAttribute('stroke', `url(#bg${i})`);
+    fill.style.strokeDasharray  = arcLen;
+    fill.style.strokeDashoffset = arcLen;
+
+    // Soft outer glow on the first two bands
+    if (i === 0) {
+      fill.style.filter = `drop-shadow(0 0 10px ${b.mid}55)`;
+    }
+
+    svg.appendChild(fill);
+    fillEls.push({ el: fill, len: arcLen });
+  });
+
+  // ── UI elements ──
+  const minIn      = document.getElementById('minInput');
+  const secIn      = document.getElementById('secInput');
+  const startBtn   = document.getElementById('startBtn');
+  const pauseBtn   = document.getElementById('pauseBtn');
+  const cancelBtn  = document.getElementById('cancelBtn');
+  const inputPanel = document.getElementById('inputPanel');
+  const runCtrls   = document.getElementById('runControls');
+  const digitsEl   = document.getElementById('digits');
+  const labelEl    = document.getElementById('timeLabel');
+  const flashEl    = document.getElementById('flash');
+  const doneMsgEl  = document.getElementById('doneMsg');
+
+  let totalMs = 0, running = false, paused = false;
+  let startTime = 0, elapsed = 0, pausedAt = 0;
+  let rafId = null;
+  let audioCtx = null;
+
+  function fmt(ms) {
+    const totalSec = Math.ceil(ms / 1000);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function setArc(fraction) {
+    fillEls.forEach(({ el, len }) => {
+      el.style.strokeDashoffset = len * (1 - fraction);
+    });
+  }
+
+  function frame(now) {
+    if (!running || paused) return;
+    const remainMs = Math.max(0, totalMs - (now - startTime));
+    const frac = totalMs > 0 ? (totalMs - remainMs) / totalMs : 0;
+    digitsEl.textContent = fmt(remainMs);
+    setArc(frac);
+    if (remainMs <= 0) {
+      finish();
+    } else {
+      rafId = requestAnimationFrame(frame);
+    }
+  }
+
+  function beep() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc  = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 660;
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.6);
+    } catch (e) {}
+  }
+
+  function finish() {
+    running = false;
+    paused = false;
+    cancelAnimationFrame(rafId);
+    setArc(1);
+    digitsEl.textContent = '00:00';
+    labelEl.textContent = 'complete';
+    flashEl.classList.add('active');
+    doneMsgEl.classList.add('visible');
+    beep();
+    setTimeout(() => beep(), 300);
+    setTimeout(() => beep(), 600);
+    setTimeout(() => flashEl.classList.remove('active'), 1500);
+    runCtrls.classList.add('hidden');
+    inputPanel.classList.remove('hidden');
+  }
+
+  startBtn.addEventListener('click', () => {
+    const m = parseInt(minIn.value) || 0;
+    const s = parseInt(secIn.value) || 0;
+    totalMs = (m * 60 + s) * 1000;
+    if (totalMs <= 0) return;
+    running = true;
+    paused = false;
+    doneMsgEl.classList.remove('visible');
+    labelEl.textContent = 'remaining';
+    inputPanel.classList.add('hidden');
+    runCtrls.classList.remove('hidden');
+    pauseBtn.textContent = 'Pause';
+    startTime = performance.now();
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(frame);
+  });
+
+  pauseBtn.addEventListener('click', () => {
+    if (!running) return;
+    if (!paused) {
+      paused = true;
+      pausedAt = performance.now();
+      cancelAnimationFrame(rafId);
+      pauseBtn.textContent = 'Resume';
+      labelEl.textContent  = 'paused';
+    } else {
+      paused = false;
+      // Shift startTime forward by the paused duration
+      startTime += performance.now() - pausedAt;
+      pauseBtn.textContent = 'Pause';
+      labelEl.textContent  = 'remaining';
+      rafId = requestAnimationFrame(frame);
+    }
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    running = false;
+    paused = false;
+    cancelAnimationFrame(rafId);
+    totalMs = 0;
+    setArc(0);
+    digitsEl.textContent = '00:00';
+    labelEl.textContent  = 'set your time';
+    runCtrls.classList.add('hidden');
+    inputPanel.classList.remove('hidden');
+  });
+</script>
+</body>
+</html>
